@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Velora</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#7b66ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-192.svg" />
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div id="toast-root"></div>
+
+  <section id="auth-view" class="auth-shell">
+    <div class="auth-layout">
+      <div class="auth-hero">
+        <div class="hero-badge">Velora</div>
+        <h1>Telegram-ритм,<br>но с характером Velora.</h1>
+        <p>Локальный web-мессенджер с чатами, группами, каналами, файлами, редактированием, ответами, пересылкой, голосовыми, кружками, темами и защищённой E2EE-моделью.</p>
+        <div class="hero-card-stack">
+          <div class="hero-card floating-card">🔒 E2EE в браузере</div>
+          <div class="hero-card floating-card alt">🎙️ Зажми микрофон для голосового</div>
+          <div class="hero-card floating-card">💬 Enter — отправить, Shift+Enter — новая строка</div>
+        </div>
+      </div>
+
+      <div class="auth-card telegram-auth-card">
+        <div class="brand-block tg-brand">
+          <div class="brand-logo">VL</div>
+          <div>
+            <h2>Velora</h2>
+            <p>Войди по email или username. Для новой вкладки с другим аккаунтом открой <strong>?fresh=1</strong>.</p>
+          </div>
+        </div>
+
+        <div class="auth-tabs telegram-tabs">
+          <button id="auth-tab-login" type="button" class="tab-button active" data-auth-tab="login">Вход</button>
+          <button id="auth-tab-register" type="button" class="tab-button" data-auth-tab="register">Регистрация</button>
+        </div>
+
+        <form id="login-form" class="auth-form telegram-form" novalidate>
+          <div id="login-error" class="auth-inline-error hidden"></div>
+          <label>
+            <span>Email или username</span>
+            <input type="text" name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required />
+          </label>
+          <label>
+            <span>Пароль</span>
+            <input type="password" name="password" autocomplete="current-password" required />
+          </label>
+          <button id="login-submit" type="submit" class="primary-button auth-submit">Войти</button>
+        </form>
+
+        <form id="register-form" class="auth-form telegram-form hidden" novalidate>
+          <div id="register-error" class="auth-inline-error hidden"></div>
+          <label>
+            <span>Имя</span>
+            <input type="text" name="name" required />
+          </label>
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+          </label>
+          <label>
+            <span>Username</span>
+            <input type="text" name="username" placeholder="например, redfox_01" autocapitalize="none" spellcheck="false" maxlength="32" required />
+            <small class="field-hint">Только латиница, цифры и нижнее подчёркивание. Заглавные буквы автоматически переводятся в нижний регистр.</small>
+          </label>
+          <label>
+            <span>Пароль</span>
+            <input type="password" name="password" autocomplete="new-password" required />
+          </label>
+          <button id="register-submit" type="submit" class="primary-button auth-submit">Создать аккаунт</button>
+        </form>
+
+        <p class="muted-note">Локальный web-мессенджер с чатами, группами, файлами, редактированием, ответами, пересылкой, голосовыми и базовой E2EE-моделью.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="app-view" class="app-shell hidden">
+    <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+    <aside id="sidebar" class="sidebar telegram-sidebar">
+      <div class="sidebar-top telegram-sidebar-top">
+        <div class="sidebar-top-row">
+          <button id="menu-toggle" class="icon-button" aria-label="Открыть меню"></button>
+          <label class="search-input telegram-search">
+            <span class="search-icon"></span>
+            <input id="chat-filter" type="text" placeholder="Поиск" />
+          </label>
+        </div>
+      </div>
+
+      <div id="chat-list" class="chat-list"></div>
+      <div id="chat-empty" class="empty-state sidebar-empty hidden">
+        <h3>Чатов пока нет</h3>
+        <p>Ищи диалоги через строку поиска. Для группы и канала меню останется слева.</p>
+        <button id="search-new-chat" type="button" class="primary-button small hidden">Найти пользователя</button>
+      </div>
+    </aside>
+
+    <main class="chat-main telegram-main">
+      <div id="chat-placeholder" class="empty-state chat-placeholder">
+        <div class="placeholder-visual">💬</div>
+        <h2>Выбери чат</h2>
+        <p>Список чатов слева, меню и настройки — через три полоски вверху.</p>
+      </div>
+
+      <div id="chat-panel" class="chat-panel hidden">
+        <header class="chat-header telegram-header">
+          <div id="chat-header-main" class="chat-header-main clickable">
+            <button id="mobile-back" class="icon-button mobile-only" aria-label="Назад"></button>
+            <div id="current-chat-avatar" class="header-avatar"></div>
+            <div class="chat-header-texts">
+              <strong id="current-chat-title">—</strong>
+              <div id="current-chat-subtitle" class="muted-line">—</div>
+            </div>
+          </div>
+          <div class="chat-header-actions">
+            <button id="header-audio-call" class="icon-button" aria-label="Аудиозвонок"></button>
+            <button id="header-video-call" class="icon-button" aria-label="Видеозвонок"></button>
+            <button id="ask-notification" class="icon-button" aria-label="Уведомления"></button>
+            <button id="details-toggle" class="icon-button" aria-label="Информация"></button>
+          </div>
+        </header>
+
+        <div id="reply-banner" class="reply-banner hidden">
+          <div class="reply-banner-line"></div>
+          <div class="reply-banner-content">
+            <strong id="reply-banner-title">Ответ</strong>
+            <span id="reply-banner-text">—</span>
+          </div>
+          <button id="reply-clear" class="icon-button small" aria-label="Отменить ответ"></button>
+        </div>
+
+        <div id="message-list" class="message-list"></div>
+        <div id="typing-indicator" class="typing-indicator hidden"></div>
+
+        <form id="composer-form" class="composer-form telegram-composer">
+          <input id="file-input" type="file" class="hidden" />
+          <div class="attach-anchor">
+            <button type="button" id="attach-button" class="icon-button composer-icon" aria-label="Прикрепить файл"></button>
+            <div id="attach-hover-menu" class="attach-hover-menu">
+              <button type="button" class="attach-hover-item" data-attach-kind="media"><span class="attach-menu-icon media"></span><span>Фото или видео</span></button>
+              <button type="button" class="attach-hover-item" data-attach-kind="document"><span class="attach-menu-icon document"></span><span>Документ</span></button>
+              <button type="button" class="attach-hover-item" data-attach-kind="poll"><span class="attach-menu-icon poll"></span><span>Опрос</span></button>
+              <button type="button" class="attach-hover-item" data-attach-kind="geo"><span class="attach-menu-icon geo"></span><span>Геопозиция</span></button>
+              <button type="button" class="attach-hover-item" data-attach-kind="wallet"><span class="attach-menu-icon wallet"></span><span>Кошелёк</span></button>
+            </div>
+          </div>
+          <button type="button" id="media-panel-toggle" class="icon-button composer-icon" aria-label="Эмодзи и стикеры"></button>
+          <div class="composer-input-wrap">
+            <div id="recording-indicator" class="recording-indicator hidden">
+              <div class="recording-dot"></div>
+              <div class="recording-waves"><span></span><span></span><span></span><span></span></div>
+              <strong>Запись голосового</strong>
+              <span id="recording-timer" class="muted-line">0:00</span>
+              <em>Отпусти, чтобы отправить</em>
+            </div>
+            <textarea id="composer-input" rows="1" placeholder="Сообщение"></textarea>
+          </div>
+          <button type="button" id="video-note-button" class="icon-button composer-icon" aria-label="Кружок"></button>
+          <button type="button" id="voice-button" class="icon-button composer-icon" aria-label="Голосовое сообщение"></button>
+          <button type="submit" id="send-button" class="icon-button composer-send" aria-label="Отправить"></button>
+        </form>
+      </div>
+    </main>
+
+    <div id="menu-drawer-overlay" class="drawer-overlay hidden"></div>
+    <aside id="menu-drawer" class="menu-drawer">
+      <div class="drawer-profile">
+        <button id="profile-open" class="avatar-button big-avatar"></button>
+        <div class="me-text">
+          <strong id="me-name">—</strong>
+          <span id="me-username">@—</span>
+        </div>
+      </div>
+      <div class="drawer-menu">
+        <button id="new-group-chat" class="drawer-item">
+          <span class="drawer-item-icon users-icon"></span>
+          <span>Новая группа</span>
+        </button>
+        <button id="new-channel-chat" class="drawer-item">
+          <span class="drawer-item-icon megaphone-icon"></span>
+          <span>Новый канал</span>
+        </button>
+        <button id="open-profile-settings" class="drawer-item">
+          <span class="drawer-item-icon settings-icon"></span>
+          <span>Настройки</span>
+        </button>
+        <button id="open-notification-settings" class="drawer-item">
+          <span class="drawer-item-icon bell-icon"></span>
+          <span>Браузерные уведомления</span>
+        </button>
+        <button id="logout-button" class="drawer-item danger">
+          <span class="drawer-item-icon logout-icon"></span>
+          <span>Выйти</span>
+        </button>
+      </div>
+      <p class="drawer-note">Стиль как в Telegram по расположению, но с твоей текущей графикой.</p>
+    </aside>
+
+    <div id="details-overlay" class="drawer-overlay hidden"></div>
+    <aside id="details-panel" class="details-panel tg-details-panel centered-panel">
+      <div class="details-panel-header compact-header">
+        <strong>Профиль</strong>
+        <button id="details-close" class="icon-button small" aria-label="Закрыть"></button>
+      </div>
+
+      <div id="details-empty" class="empty-state compact">
+        <h3>Информация о чате</h3>
+        <p>Нажми на пользователя или шапку чата, чтобы открыть детали как в Telegram.</p>
+      </div>
+
+      <div id="details-content" class="details-content hidden">
+        <div class="details-card profile-card details-top-card">
+          <div id="details-avatar" class="details-avatar large"></div>
+          <h3 id="details-title">—</h3>
+          <p id="details-subtitle" class="muted-line">—</p>
+          <p id="details-bio" class="details-bio muted-line hidden"></p>
+          <div class="details-actions-grid">
+            <button type="button" id="details-action-chat" class="details-action-btn"><span class="details-action-icon chat"></span><span>Чат</span></button>
+            <button type="button" id="details-action-sound" class="details-action-btn"><span class="details-action-icon bell"></span><span>Звук</span></button>
+            <button type="button" id="details-action-call" class="details-action-btn"><span class="details-action-icon call"></span><span>Звонок</span></button>
+            <button type="button" id="details-action-more" class="details-action-btn"><span class="details-action-icon more"></span><span>Ещё</span></button>
+          </div>
+        </div>
+
+        <div class="details-card">
+          <div class="details-info-row"><span class="details-info-key">Username</span><strong id="details-handle">@—</strong></div>
+          <div class="details-info-row"><span class="details-info-key">Описание</span><strong id="details-extra-info">Описание не заполнено.</strong></div>
+        </div>
+
+        <div class="details-card details-stats-card">
+          <div id="details-stats" class="details-stats-list"></div>
+        </div>
+
+        <div id="group-owner-controls" class="details-card hidden">
+          <h4 id="group-owner-title">Управление группой</h4>
+          <form id="group-settings-form" class="stack-form">
+            <label>
+              <span>Название</span>
+              <input id="group-title-input" type="text" />
+            </label>
+            <label>
+              <span>Аватар</span>
+              <input id="group-avatar-input" type="file" accept="image/*" />
+            </label>
+            <button type="submit" class="primary-button small">Сохранить</button>
+          </form>
+          <button id="group-add-members" class="secondary-button small">Добавить участников</button>
+        </div>
+
+        <div id="participants-card" class="details-card hidden">
+          <h4 id="participants-title">Участники</h4>
+          <div id="participant-list" class="participant-list"></div>
+        </div>
+      </div>
+    </aside>
+
+    <div id="media-panel-overlay" class="drawer-overlay hidden"></div>
+    <aside id="media-panel" class="media-panel tg-media-panel">
+      <div class="details-panel-header compact-header">
+        <div>
+          <strong>Эмодзи и стикеры</strong>
+          <p class="muted-line">Паки как в Telegram, но в твоём стиле.</p>
+        </div>
+        <button id="media-panel-close" class="icon-button small" aria-label="Закрыть"></button>
+      </div>
+      <div class="media-tab-switcher">
+        <button type="button" class="media-tab-button active" data-media-tab="emoji">Эмодзи</button>
+        <button type="button" class="media-tab-button" data-media-tab="stickers">Стикеры</button>
+        <button type="button" class="media-tab-button" data-media-tab="gifs">GIF</button>
+      </div>
+      <div id="media-pack-strip" class="media-pack-strip"></div>
+      <div id="media-panel-body" class="media-panel-body"></div>
+      <div class="media-panel-footer">
+        <button id="create-pack-button" type="button" class="secondary-button small">Новый пак</button>
+        <button id="premium-free-badge" type="button" class="primary-button small">Премиум сейчас бесплатный</button>
+      </div>
+      <input id="custom-sticker-input" type="file" accept="image/*" class="hidden" />
+      <input id="custom-emoji-image-input" type="file" accept="image/*" class="hidden" />
+    </aside>
+
+  </section>
+
+  <div id="message-menu" class="message-menu hidden"></div>
+
+  <dialog id="search-modal" class="modal">
+    <form method="dialog" class="modal-card" id="search-modal-form">
+      <div class="modal-header">
+        <h3 id="search-modal-title">Новый чат</h3>
+        <button class="ghost-button" value="cancel">Закрыть</button>
+      </div>
+      <label class="inline-input">
+        <span>Поиск по username</span>
+        <input id="search-users-input" type="text" placeholder="например, alex" />
+      </label>
+      <div id="search-modal-helper" class="modal-helper"></div>
+      <div id="search-modal-error" class="modal-error hidden"></div>
+      <div class="selection-summary">
+        <div>
+          <strong>Выбрано</strong>
+          <div id="selected-counter" class="muted-line">0 пользователей</div>
+        </div>
+        <div id="selection-hint" class="selection-pill">Выбор пуст</div>
+      </div>
+      <div id="search-results" class="search-results"></div>
+      <label id="group-title-field" class="inline-input hidden">
+        <span id="new-chat-title-label">Название группы</span>
+        <input id="new-group-title" type="text" placeholder="Новая группа" />
+      </label>
+      <div id="selected-users" class="selected-users"></div>
+      <div class="modal-actions">
+        <button id="modal-submit" type="button" class="primary-button">Создать</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="attach-action-modal" class="modal">
+    <form method="dialog" class="modal-card attach-action-card" id="attach-action-form">
+      <div class="modal-header">
+        <div>
+          <h3 id="attach-action-title">Новая карточка</h3>
+          <p id="attach-action-helper" class="muted-line">Оформи сообщение как в Telegram, но в стиле этого клиента.</p>
+        </div>
+        <button class="ghost-button" value="cancel">Закрыть</button>
+      </div>
+      <div id="attach-action-fields" class="attach-action-fields"></div>
+      <div class="modal-actions">
+        <button id="attach-action-submit" type="submit" class="primary-button">Отправить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="forward-modal" class="modal">
+    <form method="dialog" class="modal-card" id="forward-modal-form">
+      <div class="modal-header">
+        <h3>Переслать сообщение</h3>
+        <button class="ghost-button" value="cancel">Закрыть</button>
+      </div>
+      <label class="inline-input">
+        <span>Поиск по чатам</span>
+        <input id="forward-filter" type="text" placeholder="Имя или группа" />
+      </label>
+      <div id="forward-list" class="search-results"></div>
+    </form>
+  </dialog>
+
+
+  <dialog id="settings-modal" class="modal">
+    <div class="modal-card settings-modal-card">
+      <div class="settings-modal-layout">
+        <aside class="settings-nav">
+          <div class="settings-nav-head">
+            <h3>Настройки</h3>
+            <button id="settings-close" class="ghost-button">Закрыть</button>
+          </div>
+          <button class="settings-nav-item active" data-settings-section="profile">Профиль</button>
+          <button class="settings-nav-item" data-settings-section="devices">Устройства</button>
+          <button class="settings-nav-item" data-settings-section="data">Данные и память</button>
+          <button class="settings-nav-item" data-settings-section="premium">Эмодзи и стикеры</button>
+          <button class="settings-nav-item" data-settings-section="themes">Темы</button>
+        </aside>
+        <div class="settings-sections">
+          <section class="settings-section active" data-settings-content="profile">
+            <div class="settings-hero centered-profile">
+              <div id="settings-avatar" class="details-avatar large"></div>
+              <h3 id="settings-name">—</h3>
+              <p id="settings-username" class="muted-line">@—</p>
+              <p id="settings-bio" class="muted-line">Описание не заполнено.</p>
+            </div>
+            <div class="settings-card-grid">
+              <div class="details-card">
+                <h4>Аккаунт</h4>
+                <div class="settings-kv"><span>Email</span><strong id="settings-email">—</strong></div>
+                <div class="settings-kv"><span>Создан</span><strong id="settings-created">—</strong></div>
+                <button id="settings-edit-profile" type="button" class="primary-button small">Редактировать профиль</button>
+              </div>
+              <div class="details-card">
+                <h4>Приватность</h4>
+                <p id="settings-e2ee-title" class="settings-e2ee-title">E2EE</p>
+                <p id="settings-e2ee-text" class="muted-line">—</p>
+              </div>
+            </div>
+          </section>
+          <section class="settings-section" data-settings-content="devices">
+            <div class="settings-section-head">
+              <div>
+                <h3>Устройства</h3>
+                <p class="muted-line">Активные браузерные сессии без сырого User-Agent текста.</p>
+              </div>
+              <button id="terminate-other-sessions" type="button" class="secondary-button small">Завершить остальные</button>
+            </div>
+            <div id="sessions-list" class="settings-list"></div>
+          </section>
+          <section class="settings-section" data-settings-content="data">
+            <div class="settings-section-head">
+              <div>
+                <h3>Данные и память</h3>
+                <p class="muted-line">Обзор данных аккаунта в стиле Telegram.</p>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="details-card"><span>Чаты</span><strong id="stats-chats">0</strong></div>
+              <div class="details-card"><span>Личные</span><strong id="stats-directs">0</strong></div>
+              <div class="details-card"><span>Группы</span><strong id="stats-groups">0</strong></div>
+              <div class="details-card"><span>Каналы</span><strong id="stats-channels">0</strong></div>
+              <div class="details-card"><span>Сообщения</span><strong id="stats-messages">0</strong></div>
+              <div class="details-card"><span>Файлы</span><strong id="stats-files">0</strong></div>
+              <div class="details-card"><span>Объём</span><strong id="stats-storage">0 KB</strong></div>
+            </div>
+          </section>
+          <section class="settings-section" data-settings-content="premium">
+            <div class="settings-section-head">
+              <div>
+                <h3>Эмодзи и стикеры</h3>
+                <p class="muted-line">Premium действует только на специальные эмодзи. Свои стикеры — всегда бесплатные.</p>
+              </div>
+            </div>
+            <div class="details-card">
+              <div class="settings-toggle-row">
+                <div>
+                  <strong>Premium эмодзи</strong>
+                  <p class="muted-line">Открывает доступ к премиум-набору в панели рядом с микрофоном.</p>
+                </div>
+                <button id="premium-emoji-toggle" type="button" class="secondary-button small">Выкл</button>
+              </div>
+            </div>
+            <div class="settings-card-grid">
+              <div class="details-card">
+                <h4>Custom emoji</h4>
+                <p class="muted-line" id="custom-emoji-count">0 элементов</p>
+                <div class="settings-inline-actions">
+                  <button id="create-custom-emoji" type="button" class="secondary-button small">Новый emoji в пак</button>
+                  <button id="upload-custom-emoji" type="button" class="secondary-button small">Emoji-изображение в пак</button>
+                </div>
+              </div>
+              <div class="details-card">
+                <h4>Стикеры</h4>
+                <p class="muted-line" id="custom-sticker-count">0 элементов</p>
+                <div class="settings-inline-actions">
+                  <button id="upload-custom-sticker" type="button" class="secondary-button small">Стикер в пак</button>
+                  <button id="open-media-panel-from-settings" type="button" class="primary-button small">Открыть панель</button>
+                </div>
+              </div>
+            </div>
+            <div class="settings-pack-grid">
+              <div class="details-card settings-pack-card">
+                <div class="settings-section-head">
+                  <div>
+                    <h4>Emoji-паки</h4>
+                    <p class="muted-line">Локальные наборы с быстрым переключением и предпросмотром.</p>
+                  </div>
+                  <button id="create-emoji-pack" type="button" class="secondary-button small">Новый пак</button>
+                </div>
+                <div id="settings-emoji-packs" class="settings-pack-list"></div>
+              </div>
+              <div class="details-card settings-pack-card">
+                <div class="settings-section-head">
+                  <div>
+                    <h4>Sticker-паки</h4>
+                    <p class="muted-line">Собирай свои наборы и делай активными, как в Telegram.</p>
+                  </div>
+                  <button id="create-sticker-pack" type="button" class="secondary-button small">Новый пак</button>
+                </div>
+                <div id="settings-sticker-packs" class="settings-pack-list"></div>
+              </div>
+            </div>
+
+          </section>
+          <section class="settings-section" data-settings-content="themes">
+            <div class="settings-section-head">
+              <div>
+                <h3>Темы</h3>
+                <p class="muted-line">Создавай свои темы, переключайся между ними и делись JSON-файлом с другими.</p>
+              </div>
+            </div>
+            <div class="details-card theme-builder-card">
+              <div class="theme-preview-card" id="theme-preview-card">
+                <div class="theme-preview-bubble outgoing">Моя тема</div>
+                <div class="theme-preview-bubble incoming">Telegram layout, твой стиль</div>
+              </div>
+              <div class="theme-color-grid">
+                <label><span>Фон</span><input id="theme-bg" type="color" value="#09122a" /></label>
+                <label><span>Панели</span><input id="theme-surface" type="color" value="#121b35" /></label>
+                <label><span>Акцент</span><input id="theme-primary" type="color" value="#8c77ff" /></label>
+                <label><span>Акцент 2</span><input id="theme-primary-2" type="color" value="#b092ff" /></label>
+                <label><span>Текст</span><input id="theme-text" type="color" value="#f5f7ff" /></label>
+                <label><span>Вторичный текст</span><input id="theme-muted" type="color" value="#9aa6c9" /></label>
+              </div>
+              <div class="settings-inline-actions wrap-actions">
+                <button id="save-theme-button" type="button" class="primary-button small">Сохранить тему</button>
+                <button id="reset-theme-button" type="button" class="secondary-button small">Сбросить</button>
+                <button id="export-theme-button" type="button" class="secondary-button small">Поделиться темой</button>
+                <button id="import-theme-button" type="button" class="secondary-button small">Импорт темы</button>
+              </div>
+              <input id="theme-import-input" class="hidden" type="file" accept="application/json" />
+              <div id="theme-list" class="theme-list"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+
+  <dialog id="pack-preview-modal" class="modal">
+    <div class="modal-card pack-preview-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="pack-preview-title">Пак</h3>
+          <p id="pack-preview-subtitle" class="muted-line">Набор элементов</p>
+        </div>
+        <button id="pack-preview-close" class="ghost-button">Закрыть</button>
+      </div>
+      <div id="pack-preview-grid" class="sticker-grid large-grid"></div>
+      <div class="modal-actions split">
+        <button id="pack-preview-cancel" type="button" class="ghost-button">Отмена</button>
+        <button id="pack-preview-add" type="button" class="primary-button">Добавить в мои паки</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="pack-editor-modal" class="modal">
+    <form method="dialog" class="modal-card" id="pack-editor-form">
+      <div class="modal-header">
+        <h3 id="pack-editor-title">Создать пак</h3>
+        <button class="ghost-button" value="cancel">Закрыть</button>
+      </div>
+      <label class="inline-input">
+        <span>Название пака</span>
+        <input id="pack-name-input" type="text" placeholder="Например, Funny Pack" required />
+      </label>
+      <label class="inline-input">
+        <span>Тип пака</span>
+        <select id="pack-kind-input">
+          <option value="emoji">Emoji pack</option>
+          <option value="stickers">Sticker pack</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button id="pack-editor-submit" type="submit" class="primary-button">Создать</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="profile-modal" class="modal">
+    <form method="dialog" class="modal-card profile-modal-card" id="profile-form">
+      <div class="modal-header">
+        <h3>Профиль</h3>
+        <button class="ghost-button" value="cancel">Закрыть</button>
+      </div>
+      <div class="profile-modal-body">
+        <button type="button" id="profile-avatar-trigger" class="profile-avatar-trigger" aria-label="Изменить аватар">
+          <div id="profile-avatar-preview" class="details-avatar large"></div>
+          <span>Нажми на аватар, чтобы изменить</span>
+        </button>
+        <input id="profile-avatar" class="hidden" type="file" accept="image/*" />
+        <div class="profile-grid compact-profile-grid">
+          <label>
+            <span>Имя</span>
+            <input id="profile-name" type="text" required />
+          </label>
+          <label>
+            <span>Username</span>
+            <input id="profile-username" type="text" required />
+          </label>
+          <label class="full-width">
+            <span>Описание</span>
+            <textarea id="profile-bio" rows="4"></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="modal-actions profile-modal-actions">
+        <button type="submit" class="primary-button small">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="image-preview-modal" class="modal image-preview-modal">
+    <div class="modal-card image-preview-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="image-preview-title">Фото</h3>
+          <p class="muted-line">ПКМ по изображению — сохранить как…</p>
+        </div>
+        <button id="image-preview-close" class="ghost-button" type="button">Закрыть</button>
+      </div>
+      <div class="image-preview-stage">
+        <img id="image-preview-img" src="" alt="Preview" />
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="call-modal" class="modal">
+    <div class="modal-card call-modal-card">
+      <div class="call-topbar">
+        <div>
+          <h3 id="call-title">Звонок</h3>
+          <p id="call-subtitle" class="muted-line">Подключение...</p>
+        </div>
+        <button id="call-close" class="ghost-button">Закрыть</button>
+      </div>
+      <div class="call-media-grid">
+        <div class="call-video-card local">
+          <div id="local-call-fallback" class="call-avatar-fallback">Ты</div>
+          <video id="local-video" autoplay playsinline muted></video>
+          <span>Ты</span>
+        </div>
+        <div id="remote-videos" class="remote-videos"></div>
+      </div>
+      <div class="call-controls">
+        <button id="start-audio-call" type="button" class="secondary-button small">Аудио</button>
+        <button id="start-video-call" type="button" class="secondary-button small">Видео</button>
+        <button id="toggle-mic" type="button" class="secondary-button small">Микрофон</button>
+        <button id="toggle-camera" type="button" class="secondary-button small">Камера</button>
+        <button id="share-screen" type="button" class="secondary-button small">Экран</button>
+        <button id="leave-call" type="button" class="ghost-button small danger-text">Завершить</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
